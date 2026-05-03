@@ -1,39 +1,86 @@
 package com.example.exchangerates.presentation
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import com.example.exchangerates.data.repository.CurrencyRepository
+import com.example.exchangerates.domain.model.Currency
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import kotlin.random.Random
+import java.time.format.DateTimeFormatter
+import javax.inject.Inject
 
-class HistoryViewModel(private val currencyCode: String) : ViewModel() { //реализация часть 2 история курса валюты
-    private val _historyRates = MutableStateFlow<List<Pair<LocalDate, Double>>>(emptyList()) // дата+число
-    val historyRates = _historyRates.asStateFlow()
+@HiltViewModel
+class HistoryViewModel @Inject constructor(
+    private val repository: CurrencyRepository,
+    private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
 
-    init { //генерация истории курса
-        loadHistory()
+    // ID валюты, переданный через навигацию (может быть пустым)
+    private val initialCurrencyId: String = savedStateHandle["currencyId"] ?: ""
+
+    // Список всех валют для выпадающего списка
+    private val _allCurrencies = MutableStateFlow<List<Currency>>(emptyList())
+    val allCurrencies: StateFlow<List<Currency>> = _allCurrencies
+
+    // Текущая выбранная валюта
+    private val _selectedCurrency = MutableStateFlow<Currency?>(null)
+    val selectedCurrency: StateFlow<Currency?> = _selectedCurrency
+
+    // История для выбранной валюты (в виде Ui-модели)
+    private val _history = MutableStateFlow<List<HistoryEntryUi>>(emptyList())
+    val history: StateFlow<List<HistoryEntryUi>> = _history
+
+    init {
+        loadAllCurrencies()
     }
 
-    private fun loadHistory() { //логика случайного курса часть 1.2
+    private fun loadAllCurrencies() {
         viewModelScope.launch {
-            val today = LocalDate.now()
-            val baseRate = 100.0
-            val history = (1..7).map { daysAgo ->
-                val date = today.minusDays(daysAgo.toLong())
-                val change = Random.nextDouble(-0.05, 0.05)
-                date to (baseRate * (1 + change)) //дата+цена
-            }.reversed()
-            _historyRates.value = history
+            repository.getAllCurrencies()
+                .collect { currencies ->
+                    _allCurrencies.value = currencies
+                    // Выбор валюты: сначала по переданному id, иначе первая в списке
+                    val target = if (initialCurrencyId.isNotBlank()) {
+                        currencies.find { it.id == initialCurrencyId }
+                    } else null
+                    val selected = target ?: currencies.firstOrNull()
+                    if (selected != null && selected.id != _selectedCurrency.value?.id) {
+                        _selectedCurrency.value = selected
+                        loadHistoryForCurrency(selected.id)
+                    }
+                }
+        }
+    }
+
+    fun selectCurrency(currency: Currency) {
+        if (_selectedCurrency.value?.id == currency.id) return
+        _selectedCurrency.value = currency
+        loadHistoryForCurrency(currency.id)
+    }
+
+    private fun loadHistoryForCurrency(currencyId: String) {
+        viewModelScope.launch {
+            repository.getHistoryForCurrency(currencyId)
+                .map { entities ->
+                    entities.map { entity ->
+                        HistoryEntryUi(
+                            date = LocalDate.parse(entity.date, DateTimeFormatter.ISO_LOCAL_DATE),
+                            rate = entity.rate
+                        )
+                    }.sortedByDescending { it.date } // сначала новые
+                }
+                .collect { historyEntries ->
+                    _history.value = historyEntries
+                }
         }
     }
 }
 
-class HistoryViewModelFactory(private val currencyCode: String) : ViewModelProvider.Factory { //передача данных курса валюты часть 2
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return HistoryViewModel(currencyCode) as T //передача кода валюты из навигации
-    }
-}
+// Модель для отображения в UI
+data class HistoryEntryUi(
+    val date: LocalDate,
+    val rate: Double
+)

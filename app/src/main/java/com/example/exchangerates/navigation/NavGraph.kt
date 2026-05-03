@@ -2,43 +2,49 @@ package com.example.exchangerates.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.exchangerates.data.repository.CurrencyRepository
 import com.example.exchangerates.presentation.CurrencyListScreen
 import com.example.exchangerates.presentation.CurrencyListViewModel
 import com.example.exchangerates.presentation.HistoryScreen
+import com.example.exchangerates.presentation.ComparisonScreen
 
-@Composable //часть 2.1 на два фрагмента
-fun AppNavGraph(modifier: Modifier = Modifier, repository: CurrencyRepository) {
-    val navController = rememberNavController() //для переходов
-    val listViewModel = CurrencyListViewModel(repository)
+@Composable
+fun NavGraph(modifier: Modifier = Modifier) {
+    val navController = rememberNavController()
+    val listViewModel: CurrencyListViewModel = hiltViewModel()
 
-    NavHost( //часть 2.3 навигация между экранами
+    NavHost(
         navController = navController,
         startDestination = "currency_list",
         modifier = modifier
     ) {
-        composable("currency_list") { //часть 2.1 список валют
+        composable("currency_list") {
             CurrencyListScreen(
                 navController = navController,
                 viewModel = listViewModel
             )
         }
-        composable( //часть 2.1 история курсов
-            route = "history/{currencyCode}",
-            arguments = listOf(navArgument("currencyCode") { type = NavType.StringType })
-        ) { backStackEntry -> //достаем данные
-            val code = backStackEntry.arguments?.getString("currencyCode") ?: "USD"
 
-
+        // Экран истории (передаём currencyId)
+        composable(
+            route = "history/{currencyId}",
+            arguments = listOf(navArgument("currencyId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val currencyId = backStackEntry.arguments?.getString("currencyId") ?: ""
             HistoryScreen(
-                navController = navController, //для кнопки назад
-                currencyCode = code
+                navController = navController,
+                currencyId = currencyId
             )
+        }
+
+        // Экран сравнения валют
+        composable("comparison") {
+            ComparisonScreen(navController = navController)
         }
     }
 }

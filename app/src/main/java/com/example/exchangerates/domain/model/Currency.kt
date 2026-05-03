@@ -1,8 +1,8 @@
-package com.example.exchangerates.domain.model
+package com.example.exchangerates.domain.model   // ← обязательно такой путь
 
 import java.util.UUID
 
-data class Currency( //часть 1.5 отображение информации
+data class Currency(
     val id: String = UUID.randomUUID().toString(),
     val code: String,
     val rate: Double,
