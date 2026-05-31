@@ -19,6 +19,7 @@ import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -34,11 +35,14 @@ class MainActivity : ComponentActivity() {
                     arrayOf(Manifest.permission.POST_NOTIFICATIONS),
                     1001
                 )
+            } else {
+                // Разрешение уже есть – создаём канал и отправляем тест
+                setupNotificationsAndTest()
             }
+        } else {
+            // Для версий ниже Android 13 разрешение не требуется
+            setupNotificationsAndTest()
         }
-
-        // Создаём канал уведомлений
-        NotificationHelper.createNotificationChannel(this)
 
         setContent {
             ExchangeRatesTheme {
@@ -52,7 +56,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Обработка результата запроса разрешения (опционально, для UI)
+    // Выделенная функция для создания канала и тестового уведомления
+    private fun setupNotificationsAndTest() {
+        NotificationHelper.createNotificationChannel(this)
+        NotificationHelper.sendNotification(this, "Тест", "Уведомления работают!")
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -61,9 +70,8 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1001) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Разрешение получено, можно показывать уведомления
-            } else {
-                // Разрешение не получено – уведомления не будут работать
+                // Разрешение получено – теперь можно создавать канал и слать тест
+                setupNotificationsAndTest()
             }
         }
     }

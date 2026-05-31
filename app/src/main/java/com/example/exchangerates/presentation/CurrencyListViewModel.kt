@@ -1,5 +1,6 @@
 package com.example.exchangerates.presentation
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.exchangerates.data.repository.CurrencyRepository
@@ -68,13 +69,15 @@ class CurrencyListViewModel @Inject constructor(
     private fun startPeriodicRefresh() {
         viewModelScope.launch {
             while (true) {
-                delay(60_000)
+                delay(5_000)
+                Log.d("CurrencyListViewModel", "Периодическое обновление...")
                 refresh()
             }
         }
     }
 
     fun refresh() {
+        Log.d("CurrencyListViewModel", "refresh() вызван")
         viewModelScope.launch {
             try {
                 repository.refreshFromNetwork()

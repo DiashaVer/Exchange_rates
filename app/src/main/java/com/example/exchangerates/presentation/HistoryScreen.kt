@@ -20,12 +20,22 @@ import androidx.navigation.NavController
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+/*
+    Часть 2.1 – Экран исторических курсов выбранной валюты (отдельный фрагмент/экран).
+    Часть 2.3 – Передача данных (currencyId) через навигацию (NavController).
+    Часть 5.1 – Графики исторических курсов (LineChart).
+    Часть 4.2 – MVVM: экран использует HistoryViewModel.
+    Часть 4.4 – Возможность быстро переключаться между валютами (выпадающий список).
+    Часть 1.4 – Использование Card (CardView) для отображения исторических записей.
+    Часть 2.6 – Snackbar.
+*/
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(
     navController: NavController,
-    currencyId: String,
-    viewModel: HistoryViewModel = hiltViewModel()
+    currencyId: String,     // часть 2.3 – передача id через Bundle/аргументы
+    viewModel: HistoryViewModel = hiltViewModel()   // часть 4 – DI через Hilt
 ) {
     val history by viewModel.history.collectAsState()
     val allCurrencies by viewModel.allCurrencies.collectAsState()
@@ -37,6 +47,7 @@ fun HistoryScreen(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
+                    // Выпадающий список для быстрого переключения между валютами (часть 4.4)
                     ExposedDropdownMenuBox(
                         expanded = expanded,
                         onExpandedChange = { expanded = it }
@@ -67,6 +78,7 @@ fun HistoryScreen(
         }
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            // График исторических курсов (часть 5.1)
             if (history.isNotEmpty()) {
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -87,6 +99,7 @@ fun HistoryScreen(
                     Text("Нет исторических данных")
                 }
             } else {
+                // Список исторических значений (часть 2.1)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
@@ -108,6 +121,10 @@ fun HistoryScreen(
     }
 }
 
+/*
+    Карточка исторического значения (Card) – часть 1.4 и часть 2.1.
+    Отображает дату, курс и тренд (повышение/понижение).
+*/
 @Composable
 fun HistoryCard(date: String, rate: Double, trend: Double) {
     Card(
