@@ -1,21 +1,26 @@
 pluginManagement {
     repositories {
-        google {
-            content {
-                includeGroupByRegex("com\\.android.*")
-                includeGroupByRegex("com\\.google.*")
-                includeGroupByRegex("androidx.*")
-            }
-        }
+        google()
         mavenCentral()
         gradlePluginPortal()
     }
+    plugins {
+        plugins {
+            id("com.android.application") version "8.8.0" apply false
+            id("org.jetbrains.kotlin.android") version "1.9.20" apply false
+            id("org.jetbrains.kotlin.kapt") version "1.9.20" apply false
+
+            // ОБНОВИТЕ ЭТУ СТРОКУ:
+            id("com.google.dagger.hilt.android") version "2.50" apply false
+
+            id("com.google.devtools.ksp") version "1.9.20-1.0.14" apply false
+        }
+
+    }
 }
-plugins {
-    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
-}
+
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()

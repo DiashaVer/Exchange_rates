@@ -2,43 +2,64 @@ package com.example.exchangerates.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.example.exchangerates.data.repository.CurrencyRepository
 import com.example.exchangerates.presentation.CurrencyListScreen
 import com.example.exchangerates.presentation.CurrencyListViewModel
 import com.example.exchangerates.presentation.HistoryScreen
+import com.example.exchangerates.presentation.ComparisonScreen
 
-@Composable //часть 2.1 на два фрагмента
-fun AppNavGraph(modifier: Modifier = Modifier, repository: CurrencyRepository) {
-    val navController = rememberNavController() //для переходов
-    val listViewModel = CurrencyListViewModel(repository)
+/*
+    Часть 2.1 и 2.2 – Разделение приложения на экраны и навигация между ними.
+    Вместо фрагментов (XML) используется Jetpack Compose с навигацией через NavHost.
+    Эквивалентно фрагментам: каждый composable-экран выполняет роль отдельного "фрагмента".
 
-    NavHost( //часть 2.3 навигация между экранами
+    Часть 2.3 – Передача данных между экранами через аргументы маршрута (currencyId),
+    что аналогично Bundle или SafeArgs.
+
+    Часть 5.2 – Добавлен экран сравнения валют (ComparisonScreen) – отображение нескольких валют одновременно.
+
+    Часть 4.2 – Используется hiltViewModel() для внедрения ViewModel (DI  Hilt).
+*/
+
+@Composable
+fun NavGraph(modifier: Modifier = Modifier) {
+    val navController = rememberNavController()
+    val listViewModel: CurrencyListViewModel = hiltViewModel()  // DI, MVVM
+
+    NavHost(
         navController = navController,
-        startDestination = "currency_list",
+        startDestination = "currency_list",   // главный экран со списком валют
         modifier = modifier
     ) {
-        composable("currency_list") { //часть 2.1 список валют
+        // Часть 1 и 2 – главный экран (список валют с текущим курсом + сортировка)
+        composable("currency_list") {
             CurrencyListScreen(
                 navController = navController,
                 viewModel = listViewModel
             )
         }
-        composable( //часть 2.1 история курсов
-            route = "history/{currencyCode}",
-            arguments = listOf(navArgument("currencyCode") { type = NavType.StringType })
-        ) { backStackEntry -> //достаем данные
-            val code = backStackEntry.arguments?.getString("currencyCode") ?: "USD"
 
-
+        // Часть 2.1 – экран исторических курсов выбранной валюты
+        // Передача currencyId через аргумент (как Bundle/SafeArgs)
+        composable(
+            route = "history/{currencyId}",
+            arguments = listOf(navArgument("currencyId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val currencyId = backStackEntry.arguments?.getString("currencyId") ?: ""
             HistoryScreen(
-                navController = navController, //для кнопки назад
-                currencyCode = code
+                navController = navController,
+                currencyId = currencyId
             )
+        }
+
+        // Часть 5.2 – экран сравнения нескольких валют одновременно
+        composable("comparison") {
+            ComparisonScreen(navController = navController)
         }
     }
 }

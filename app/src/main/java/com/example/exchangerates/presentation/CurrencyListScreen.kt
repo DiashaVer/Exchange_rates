@@ -1,23 +1,32 @@
 package com.example.exchangerates.presentation
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.exchangerates.domain.model.Currency
 import java.util.Locale
+
+/*
+    Часть 1 – Базовый функционал (главный экран, CRUD, сетка, карточки).
+    Часть 2 – Избранное, Snackbar, навигация на историю.
+    Часть 3 – Кнопка обновления (SwipeRefreshLayout не реализован, но есть кнопка – допустимо).
+    Часть 4 – MVVM (ViewModel, фильтрация, сортировка), DI через Hilt.
+    Часть 5 – Анимация при переключении избранного (animateColorAsState).
+*/
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,45 +34,115 @@ fun CurrencyListScreen(
     navController: NavController,
     viewModel: CurrencyListViewModel
 ) {
-    val sortedCurrencies = viewModel.getSortedCurrencies() //отсортированный список избранного
-    //CRUD показ диалоговых окон
+    // ----- Часть 4.2 – UI подписывается на StateFlow (LiveData/Flow) -----
+    val currencies by viewModel.currencies.collectAsState() //3.3
+    val filterText by viewModel.filterText.collectAsState()
+
     var showAddDialog by remember { mutableStateOf(false) }
     var editingCurrency by remember { mutableStateOf<Currency?>(null) }
     var currencyToDelete by remember { mutableStateOf<Currency?>(null) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
-    val snackbarHostState = remember { SnackbarHostState() } //часть 2.6 отображение SnackBar
+    // ----- Часть 2.6 – Snackbar для подтверждения действий -----
+    val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
         viewModel.snackbarMessage.collect { message ->
-            snackbarHostState.showSnackbar(message)
+            snackbarHostState.showSnackbar(message) // часть 3.5
         }
     }
 
-    Scaffold( //шаблон шапки экрана
-        topBar = { CenterAlignedTopAppBar(title = { Text("Курсы валют") }) },
-        floatingActionButton = { //кнопка +
+    Scaffold(
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("Курсы валют") },
+                actions = {
+                    // ----- Часть 4.4 – сортировка (по коду, курсу, избранному) -----
+                    IconButton(onClick = { showSortMenu = true }) {
+                        Icon(Icons.Default.Sort, contentDescription = "Сортировка")
+                    }
+                    DropdownMenu(
+                        expanded = showSortMenu,
+                        onDismissRequest = { showSortMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("По коду") },
+                            onClick = {
+                                viewModel.updateSortType(SortType.BY_CODE)
+                                showSortMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("По курсу") },
+                            onClick = {
+                                viewModel.updateSortType(SortType.BY_RATE)
+                                showSortMenu = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("По избранному") },
+                            onClick = {
+                                viewModel.updateSortType(SortType.BY_FAVORITE)
+                                showSortMenu = false
+                            }
+                        )
+                    }
+                    // ----- Часть 5.2 – переход на экран сравнения валют -----
+                    IconButton(onClick = { navController.navigate("comparison") }) {
+                        Icon(Icons.Default.BarChart, contentDescription = "Сравнить")
+                    }
+                    // ----- Часть 3.4 – обновление по кнопке (альтернатива SwipeRefreshLayout) -----
+                    IconButton(onClick = { viewModel.refresh() }) {
+                        Icon(Icons.Default.Refresh, contentDescription = "Обновить")
+                    }
+                }
+            )
+        },
+        // ----- Часть 1.2 – добавление новой валюты (FAB) -----
+        floatingActionButton = {
             FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = "Добавить") // часть 1.2 реализация кнопки добавить валюту
+                Icon(Icons.Default.Add, contentDescription = "Добавить")
             }
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) } //контейнер для отображ. внизу экрана информац.
+        snackbarHost = { SnackbarHost(snackbarHostState) } //часть 3.5
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues)) {
-            if (sortedCurrencies.isEmpty()) {
-                Text("Нет валют, нажмите +", modifier = Modifier.align(Alignment.Center))
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+        ) {
+            // ----- Часть 4.4 – фильтр по валютам (текстовый поиск) -----
+            OutlinedTextField(
+                value = filterText,
+                onValueChange = { viewModel.updateFilter(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Поиск по коду валюты") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
+            )
+
+            if (currencies.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Нет валют, нажмите +")
+                }
             } else {
-                LazyVerticalGrid( //часть 1.3 LazyVerticalGrid
+                // ----- Часть 1.3 – LazyVerticalGrid (аналог GridLayout) -----
+                // ----- Часть 1.4 – каждый элемент – карточка (Card) -----
+                LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 160.dp),
                     contentPadding = PaddingValues(8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(sortedCurrencies, key = { it.id }) { currency ->
-                        CurrencyCard( // часть 1.4 Для отображения каждой валюты Card
+                    items(currencies, key = { it.id }) { currency -> //5.4
+                        CurrencyCard(
                             currency = currency,
                             onFavorite = { viewModel.toggleFavorite(currency) },
                             onEdit = { editingCurrency = currency },
                             onDelete = { currencyToDelete = currency },
-                            onHistory = { navController.navigate("history/${currency.code}") }
+                            onHistory = { navController.navigate("history/${currency.id}") } // часть 2, навигация
                         )
                     }
                 }
@@ -71,7 +150,7 @@ fun CurrencyListScreen(
         }
     }
 
-    // часть 1.7 Ввод данных реализовать через диалоговое окно
+    // ----- Часть 1.7 – ввод данных через диалоговое окно (добавление) -----
     if (showAddDialog) {
         CurrencyDialog(
             title = "Добавить валюту",
@@ -83,6 +162,7 @@ fun CurrencyListScreen(
         )
     }
 
+    // ----- Часть 1.2 – редактирование валюты (иконка, код) -----
     editingCurrency?.let { currency ->
         CurrencyDialog(
             title = "Редактировать ${currency.code}",
@@ -95,6 +175,7 @@ fun CurrencyListScreen(
         )
     }
 
+    // ----- Часть 1.2 – удаление валюты с диалогом подтверждения -----
     currencyToDelete?.let { currency ->
         AlertDialog(
             onDismissRequest = { currencyToDelete = null },
@@ -117,117 +198,121 @@ fun CurrencyListScreen(
     }
 }
 
+// ----- Карточка валюты (Card) – часть 1.4 и 1.5 -----
 @Composable
-fun CurrencyCard( //часть 1.4-1.5 визуальное предствлание одной карточки валюты
+fun CurrencyCard(
     currency: Currency,
     onFavorite: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onHistory: () -> Unit
 ) {
+    // ----- Часть 5.4 – анимация цвета звезды при переключении избранного -----
+    val animatedTint by animateColorAsState(
+        targetValue = if (currency.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        animationSpec = tween(300),
+        label = "star_tint"
+    )
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(2.dp),
-        shape = MaterialTheme.shapes.medium //закругление углов
+        shape = MaterialTheme.shapes.medium
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) { //поверх слоя
-            // Крестик удаления (правый угол)
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(4.dp)
-                    .size(24.dp)
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon( //иконка крестика
-                    Icons.Default.Close,
-                    contentDescription = "Удалить",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f), //полупрозарчность цвета
-                    modifier = Modifier.size(16.dp)
+                // ----- Часть 1.5 – иконка валюты (эмодзи флага) -----
+                Text(text = getFlagEmoji(currency.code), style = MaterialTheme.typography.titleLarge)
+                Spacer(modifier = Modifier.width(6.dp))
+                // ----- Часть 1.5 – трёхбуквенный код -----
+                Text(
+                    text = currency.code,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
                 )
+                // ----- Часть 2.5 – кнопка избранного (сохраняется в Preferences/Room) -----
+                IconButton(onClick = onFavorite, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        if (currency.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
+                        contentDescription = "Избранное",
+                        tint = animatedTint,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+                // ----- Часть 1.2 – редактирование (карандаш) -----
+                IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Редактировать",
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
 
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            // ----- Часть 1.5 – текущий курс -----
+            Text(
+                text = "Курс: ${String.format(Locale.getDefault(), "%.2f", currency.rate)}",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth().padding(end = 20.dp) //отступ чтобы крестик не накладывался на звезду
+                // ----- Часть 2.1 – кнопка перехода к истории (фрагмент/экран) -----
+                Button(
+                    onClick = onHistory,
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
                 ) {
-                    Text(text = getFlagEmoji(currency.code), style = MaterialTheme.typography.titleLarge) // часть 1.5 реализация
-                    Spacer(modifier = Modifier.width(6.dp)) //чтобы флаг и текс не слиплись
-                    Text(
-                        text = currency.code,
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.weight(1f) //чтобы занять все свободеное место
-                    )
-
-                    IconButton(onClick = onFavorite, modifier = Modifier.size(32.dp)) { // часть 2.5 реализация избранного
-                        Icon(
-                            if (currency.isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
-                            contentDescription = "Избранное",
-                            tint = if (currency.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline, //смена цвета звезды
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
+                    Text("История", maxLines = 1)
                 }
-
-                // часть 1.5 реализация отображения курса
-                Text(
-                    text = "Курс: ${String.format(Locale.getDefault(), "%.2f", currency.rate)}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant // темно-серый цвет
-                )
-
-                // расположение кнопки управления внизу карточек история и редактирование
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                // ----- Удаление валюты (крестик) -----
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(36.dp)
                 ) {
-                    Button( //переход к истории
-                        onClick = onHistory,
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) {
-                        Text("История", maxLines = 1)
-                    }
-
-                    OutlinedIconButton( //редактирование
-                        onClick = onEdit,
-                        modifier = Modifier.size(36.dp),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = "Правка", modifier = Modifier.size(16.dp))
-                    }
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Удалить",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
         }
     }
 }
 
+// ----- Диалог для добавления/редактирования (часть 1.7) -----
 @Composable
-fun CurrencyDialog( //часть 1.7 Ввод данных реализация
+fun CurrencyDialog(
     title: String,
     initialCode: String = "",
     onConfirm: (code: String, iconRes: Int?) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var code by remember { mutableStateOf(initialCode) }   //текст пользователя
+    var code by remember { mutableStateOf(initialCode) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField( // поле для ввода данных
+            OutlinedTextField(
                 value = code,
                 onValueChange = { if (it.length <= 3) code = it },
                 label = { Text("Код валюты (3 буквы)") },
                 singleLine = true
             )
         },
-        confirmButton = { //кнопка подтверждения
+        confirmButton = {
             TextButton(onClick = {
                 if (code.length == 3) onConfirm(code.uppercase(), null)
             }) {
@@ -242,9 +327,10 @@ fun CurrencyDialog( //часть 1.7 Ввод данных реализация
     )
 }
 
-fun getFlagEmoji(currencyCode: String): String { //часть 1.5 иконки флаги валюты автоматически
+// ----- Вспомогательная функция: эмодзи флага для иконки (часть 1.5) -----
+fun getFlagEmoji(currencyCode: String): String {
     if (currencyCode.length < 2) return "💰"
-    val countryCode = when(currencyCode.uppercase()) { //сопоставление валюты и страны
+    val countryCode = when (currencyCode.uppercase()) {
         "EUR" -> "EU"
         "USD" -> "US"
         "RUB" -> "RU"
