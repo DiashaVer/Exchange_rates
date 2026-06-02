@@ -66,17 +66,17 @@ class CurrencyListViewModel @Inject constructor(
     fun updateFilter(text: String) { _filterText.value = text }
     fun updateSortType(type: SortType) { _sortType.value = type }
 
-    private fun startPeriodicRefresh() {
+    private fun startPeriodicRefresh() { // 5 часть. 1 минута, периодическое обновление
         viewModelScope.launch {
             while (true) {
-                delay(5_000)
+                delay(5_000) //должно быть 60_000, для теста 5_000
                 Log.d("CurrencyListViewModel", "Периодическое обновление...")
                 refresh()
             }
         }
     }
 
-    fun refresh() {
+    fun refresh() { //вызывает обновления
         Log.d("CurrencyListViewModel", "refresh() вызван")
         viewModelScope.launch {
             try {

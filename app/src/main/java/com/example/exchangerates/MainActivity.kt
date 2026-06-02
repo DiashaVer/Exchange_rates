@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Запрос разрешения на уведомления для Android 13+
+        // Запрос разрешения на уведомления (POST_NOTIFICATIONS) для Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (ContextCompat.checkSelfPermission(
                     this,
@@ -56,13 +56,13 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // Выделенная функция для создания канала и тестового уведомления
+    // часть 5. Выделенная функция для создания канала и тестового уведомления
     private fun setupNotificationsAndTest() {
         NotificationHelper.createNotificationChannel(this)
         NotificationHelper.sendNotification(this, "Тест", "Уведомления работают!")
     }
 
-    override fun onRequestPermissionsResult(
+    override fun onRequestPermissionsResult( //обработка ответа пользвоателя
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1001) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Разрешение получено – теперь можно создавать канал и слать тест
+                // Разрешение получено, для отправки теста
                 setupNotificationsAndTest()
             }
         }
